@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import html
 import json
@@ -215,6 +216,12 @@ def build_html(
   report_selector_options=None,
   current_sample_id: str | None = None,
 ):
+    html_dir = html_path.parent
+
+    def rel_web_path(path: Path) -> str:
+      # GitHub Pages needs repository-relative links, not local absolute paths.
+      return Path(os.path.relpath(path, start=html_dir)).as_posix()
+
     prediction_options_html = "\n".join(
         f'                  <option value="{html.escape(view["slug"])}">{html.escape(view["label"])}</option>'
         for view in prediction_views
@@ -223,7 +230,7 @@ def build_html(
     prediction_view_map = {
         view["slug"]: {
             "label": view["label"],
-            "image": view["image_path"].as_posix(),
+        "image": rel_web_path(view["image_path"]),
         }
         for view in prediction_views
     }
@@ -260,7 +267,7 @@ def build_html(
 
     marker_tiles_html = "\n".join(
         f'''          <section class="marker-tile">\n            <header>{html.escape(panel["marker_name"])}<''' +
-        f'''/header>\n            <div class="tile-frame sync-frame"><img class="sync-image" src="{html.escape(panel["image_path"].as_posix())}" alt="{html.escape(panel["marker_name"])} marker" /></div>\n          </section>'''
+      f'''/header>\n            <div class="tile-frame sync-frame"><img class="sync-image" src="{html.escape(rel_web_path(panel["image_path"]))}" alt="{html.escape(panel["marker_name"])} marker" /></div>\n          </section>'''
         for panel in marker_panels
     )
 
@@ -500,7 +507,7 @@ def build_html(
           <section class=\"prediction-panel\">
             <header>Cell Type Predictions</header>
             <div class=\"prediction-frame sync-frame\">
-              <img id=\"prediction-image\" class=\"sync-image\" src=\"{html.escape(pred_all_path.as_posix())}\" alt=\"Cell Type Predictions\" />
+              <img id=\"prediction-image\" class=\"sync-image\" src=\"{html.escape(rel_web_path(pred_all_path))}\" alt=\"Cell Type Predictions\" />
             </div>
             <div class=\"panel-controls\">
               <button id=\"zoom-in\">Zoom In</button>
@@ -519,7 +526,7 @@ def build_html(
               </section>
             </div>
             <div id=\"prediction-legend\" class=\"legend-box\">
-              <img src=\"{html.escape(pred_legend_path.as_posix())}\" alt=\"Cell Type Legend\" />
+              <img src=\"{html.escape(rel_web_path(pred_legend_path))}\" alt=\"Cell Type Legend\" />
             </div>
           </aside>
         </div>
@@ -534,7 +541,7 @@ def build_html(
 
     <section class=\"card\">
       <h2>Raw Vs Processed</h2>
-      <img class=\"img-static\" src=\"{html.escape(raw_processed_path.as_posix())}\" alt=\"Raw vs Processed\" />
+      <img class=\"img-static\" src=\"{html.escape(rel_web_path(raw_processed_path))}\" alt=\"Raw vs Processed\" />
     </section>
   </div>
 
@@ -627,7 +634,7 @@ def build_html(
       predictionImage.alt = view.label;
       predictionLegend.style.visibility = showLegend ? 'visible' : 'hidden';
       if (showLegend) {{
-        predictionLegend.innerHTML = `<img src=\"{html.escape(pred_legend_path.as_posix())}\" alt=\"Cell Type Legend\" />`;
+        predictionLegend.innerHTML = `<img src=\"{html.escape(rel_web_path(pred_legend_path))}\" alt=\"Cell Type Legend\" />`;
       }}
       if (predictionImage.complete) resetView();
     }}
