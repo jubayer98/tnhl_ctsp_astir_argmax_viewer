@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-import html
 import json
 import re
+from pathlib import Path
 
 REPORT_PATTERN = re.compile(r"^celltype_prediction_(astir|argmax)_(.+)\.html$")
 
 
-def collect_reports(project_root: Path) -> dict[str, dict[str, str]]:
+def collect_reports(project_root: Path) -> dict[str, dict[str, list[dict[str, str]]]]:
     outputs_root = project_root / "outputs"
-    report_map: dict[str, dict[str, str]] = {"astir": {}, "argmax": {}}
+    report_map: dict[str, dict[str, list[dict[str, str]]]] = {"astir": {}, "argmax": {}}
 
     for report_type in ("astir", "argmax"):
         report_dir = outputs_root / report_type / "reports"
@@ -23,14 +22,20 @@ def collect_reports(project_root: Path) -> dict[str, dict[str, str]]:
             match = REPORT_PATTERN.match(path.name)
             if not match:
                 continue
+
             _, sample_id = match.groups()
-            relative_path = path.relative_to(outputs_root).as_posix()
-            report_map[report_type][sample_id] = relative_path
+            relative_path = path.relative_to(project_root).as_posix()
+            report_map[report_type].setdefault(sample_id, []).append(
+                {
+                    "label": path.name,
+                    "path": relative_path,
+                }
+            )
 
     return report_map
 
 
-def build_index_html(report_map: dict[str, dict[str, str]]) -> str:
+def build_index_html(report_map: dict[str, dict[str, list[dict[str, str]]]]) -> str:
     map_json = json.dumps(report_map)
 
     return f"""<!doctype html>
@@ -41,50 +46,55 @@ def build_index_html(report_map: dict[str, dict[str, str]]) -> str:
   <title>TNHL Report Launcher</title>
   <style>
     :root {{
-      --bg: #0b0f14;
-      --card: #111922;
-      --line: #253242;
-      --text: #e6edf5;
-      --muted: #8aa0b8;
-      --accent: #58c4dc;
-      --accent-2: #a7e35f;
+      --bg-top: #08152a;
+      --bg-bottom: #111b31;
+      --surface: rgba(15, 26, 46, 0.82);
+      --surface-strong: #111f39;
+      --text: #e8efff;
+      --muted: #9ab0d7;
+      --accent: #4ec8ff;
+      --accent-hover: #86dcff;
+      --border: rgba(120, 156, 220, 0.35);
     }}
     * {{ box-sizing: border-box; }}
     body {{
       margin: 0;
       min-height: 100vh;
-      display: grid;
-      place-items: center;
       background:
-        radial-gradient(1200px 600px at 15% -10%, #14334a 0%, transparent 55%),
-        radial-gradient(900px 500px at 90% 110%, #314114 0%, transparent 60%),
-        var(--bg);
+        radial-gradient(circle at 10% 10%, #173869 0%, transparent 36%),
+        radial-gradient(circle at 90% 15%, #1d2a4f 0%, transparent 35%),
+        linear-gradient(165deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
       color: var(--text);
-      font-family: \"Helvetica Neue\", Helvetica, Arial, sans-serif;
-      padding: 20px;
+      font-family: \"Avenir Next\", \"Gill Sans\", \"Trebuchet MS\", sans-serif;
     }}
-    .card {{
-      width: min(680px, 100%);
-      background: color-mix(in oklab, var(--card) 92%, black 8%);
-      border: 1px solid var(--line);
+    main {{
+      max-width: 820px;
+      margin: 56px auto;
+      padding: 24px;
+    }}
+    .panel {{
+      background: var(--surface);
+      border: 1px solid var(--border);
       border-radius: 16px;
-      padding: 18px;
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+      padding: 24px;
+      margin-top: 24px;
+      box-shadow: 0 18px 40px rgba(2, 8, 18, 0.45);
+      backdrop-filter: blur(5px);
     }}
     h1 {{
-      margin: 0 0 6px;
-      font-size: 24px;
-      letter-spacing: 0.01em;
+      margin-top: 0;
+      margin-bottom: 12px;
+      font-size: 2.1rem;
+      letter-spacing: 0.02em;
     }}
     p {{
-      margin: 0 0 16px;
       color: var(--muted);
-      font-size: 14px;
+      line-height: 1.5;
     }}
     .grid {{
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 12px;
+      gap: 16px;
     }}
     .field {{
       display: flex;
@@ -92,37 +102,52 @@ def build_index_html(report_map: dict[str, dict[str, str]]) -> str:
       gap: 6px;
     }}
     .field label {{
-      color: var(--muted);
-      font-size: 12px;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
+      font-weight: 600;
+      color: #d7e4ff;
+      letter-spacing: 0.01em;
     }}
-    select, button {{
+    .field select {{
+      appearance: none;
+      border: 1px solid var(--border);
       border-radius: 10px;
-      border: 1px solid var(--line);
-      background: #0d141c;
-      color: var(--text);
       padding: 10px 12px;
-      font-size: 14px;
+      font: inherit;
+      color: var(--text);
+      background: var(--surface-strong);
+    }}
+    .field select:focus {{
+      outline: 2px solid rgba(78, 200, 255, 0.35);
+      border-color: var(--accent);
+    }}
+    .actions {{
+      margin-top: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }}
     button {{
-      background: linear-gradient(120deg, var(--accent), var(--accent-2));
-      color: #05111a;
-      border: none;
-      font-weight: 700;
+      border: 0;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #041226;
+      font: inherit;
+      font-weight: 600;
+      padding: 10px 18px;
       cursor: pointer;
-      transition: transform 0.12s ease, filter 0.12s ease;
-      margin-top: 14px;
+      transition: transform 120ms ease, background-color 120ms ease;
     }}
     button:hover {{
+      background: var(--accent-hover);
       transform: translateY(-1px);
-      filter: brightness(1.06);
+    }}
+    button:disabled {{
+      background: #5a7497;
+      color: #d2e4ff;
+      cursor: not-allowed;
     }}
     .status {{
-      margin-top: 10px;
       color: var(--muted);
-      min-height: 20px;
-      font-size: 13px;
+      font-size: 0.95rem;
     }}
     @media (max-width: 700px) {{
       .grid {{ grid-template-columns: 1fr; }}
@@ -130,82 +155,164 @@ def build_index_html(report_map: dict[str, dict[str, str]]) -> str:
   </style>
 </head>
 <body>
-  <main class=\"card\">
-    <h1>Report Launcher</h1>
-    <p>Select core and report type, then open the report in a new tab.</p>
+  <main>
+    <h1>Cell Type Prediction Reports</h1>
+    <p>Select a core and report type, then open the report in a new tab.</p>
 
-    <div class=\"grid\">
-      <div class=\"field\">
-        <label for=\"core-select\">Core</label>
-        <select id=\"core-select\"></select>
+    <section class=\"panel\">
+      <div class=\"grid\">
+        <div class=\"field\">
+          <label for=\"core-select\">Core</label>
+          <select id=\"core-select\"></select>
+        </div>
+
+        <div class=\"field\">
+          <label for=\"report-type-select\">Report Type</label>
+          <select id=\"report-type-select\"></select>
+        </div>
       </div>
 
-      <div class=\"field\">
-        <label for=\"report-type-select\">Report Type</label>
-        <select id=\"report-type-select\">
-          <option value=\"astir\">Astir</option>
-          <option value=\"argmax\">Argmax</option>
-        </select>
+      <div class=\"actions\">
+        <button id=\"open-report\" type=\"button\">Open Report</button>
+        <span id=\"status\" class=\"status\"></span>
       </div>
-    </div>
-
-    <button id=\"open-report\" type=\"button\">Open Report</button>
-    <div id=\"status\" class=\"status\"></div>
+    </section>
   </main>
 
   <script>
     const reportMap = {map_json};
+    const reportTypeDefinitions = [
+      {{ value: \"argmax\", label: \"Argmax\" }},
+      {{ value: \"astir\", label: \"ASTIR\" }},
+    ];
 
-    const coreSelect = document.getElementById("core-select");
-    const reportTypeSelect = document.getElementById("report-type-select");
-    const openButton = document.getElementById("open-report");
-    const statusEl = document.getElementById("status");
+    const coreSelect = document.getElementById(\"core-select\");
+    const reportTypeSelect = document.getElementById(\"report-type-select\");
+    const openButton = document.getElementById(\"open-report\");
+    const statusEl = document.getElementById(\"status\");
 
-    const allCores = Array.from(
-      new Set([
-        ...Object.keys(reportMap.astir || {{}}),
-        ...Object.keys(reportMap.argmax || {{}}),
-      ])
-    ).sort();
-
-    function renderCoreOptions() {{
-      const selectedType = reportTypeSelect.value;
-      const available = Object.keys(reportMap[selectedType] || {{}});
-      const coresToShow = available.length ? available : allCores;
-
-      const previous = coreSelect.value;
-      coreSelect.innerHTML = "";
-      coresToShow.forEach((core) => {{
-        const opt = document.createElement("option");
-        opt.value = core;
-        opt.textContent = core;
-        coreSelect.appendChild(opt);
+    function setOptions(select, options) {{
+      select.innerHTML = \"\";
+      options.forEach((opt) => {{
+        const option = document.createElement(\"option\");
+        option.value = opt.value;
+        option.textContent = opt.label;
+        select.appendChild(option);
       }});
+    }}
 
-      if (previous && coresToShow.includes(previous)) {{
-        coreSelect.value = previous;
+    function sortCoreKeys(cores) {{
+      return [...cores].sort((a, b) => {{
+        const [a1, a2] = a.split(\"-\").map(Number);
+        const [b1, b2] = b.split(\"-\").map(Number);
+        if (a1 !== b1) {{
+          return a1 - b1;
+        }}
+        return a2 - b2;
+      }});
+    }}
+
+    function allAvailableCores() {{
+      return sortCoreKeys(
+        Array.from(
+          new Set([
+            ...Object.keys(reportMap.astir || {{}}),
+            ...Object.keys(reportMap.argmax || {{}}),
+          ])
+        )
+      );
+    }}
+
+    function updateTypeOptions() {{
+      const core = coreSelect.value;
+      const previous = reportTypeSelect.value;
+      const availableTypes = reportTypeDefinitions.filter(
+        (typeInfo) => (reportMap[typeInfo.value]?.[core] || []).length > 0
+      );
+
+      if (availableTypes.length === 0) {{
+        setOptions(reportTypeSelect, [{{ value: \"\", label: \"No report type available\" }}]);
+        reportTypeSelect.disabled = true;
+        return;
+      }}
+
+      setOptions(reportTypeSelect, availableTypes);
+      reportTypeSelect.disabled = false;
+      if (previous && availableTypes.some((typeInfo) => typeInfo.value === previous)) {{
+        reportTypeSelect.value = previous;
       }}
     }}
 
-    function openSelectedReport() {{
-      const reportType = reportTypeSelect.value;
+    function getSelectedReportPath() {{
       const core = coreSelect.value;
-      const target = reportMap[reportType]?.[core];
+      const reportType = reportTypeSelect.value;
+      const reports = reportMap[reportType]?.[core] || [];
+      if (reports.length === 0) {{
+        return null;
+      }}
+      return reports[0].path;
+    }}
 
+    function updateStatusForSelection() {{
+      const core = coreSelect.value;
+      const reportType = reportTypeSelect.value;
+      const reports = reportMap[reportType]?.[core] || [];
+
+      if (!core || !reportType || reports.length === 0) {{
+        openButton.disabled = true;
+        statusEl.textContent = \"No report found for this selection.\";
+        return;
+      }}
+
+      openButton.disabled = false;
+      statusEl.textContent = `${{reports.length}} report available for this selection.`;
+    }}
+
+    function renderEmptyState() {{
+      setOptions(coreSelect, [{{ value: \"\", label: \"No core available\" }}]);
+      setOptions(reportTypeSelect, [{{ value: \"\", label: \"No report type available\" }}]);
+      coreSelect.disabled = true;
+      reportTypeSelect.disabled = true;
+      openButton.disabled = true;
+      statusEl.textContent = \"No reports were found in outputs/argmax/reports or outputs/astir/reports.\";
+    }}
+
+    function openSelectedReport() {{
+      const target = getSelectedReportPath();
       if (!target) {{
-        statusEl.textContent = `No ${{reportType.toUpperCase()}} report found for core ${{core}}.`;
+        statusEl.textContent = \"No report found for this selection.\";
         return;
       }}
 
       const url = new URL(target, window.location.href).href;
-      window.open(url, "_blank", "noopener,noreferrer");
-      statusEl.textContent = `Opened ${{reportType.toUpperCase()}} report for core ${{core}}.`;
+      window.open(url, \"_blank\", \"noopener,noreferrer\");
+      statusEl.textContent = \"Opened report in a new tab.\";
     }}
 
-    reportTypeSelect.addEventListener("change", renderCoreOptions);
-    openButton.addEventListener("click", openSelectedReport);
+    function initializeSelectors() {{
+      const cores = allAvailableCores();
+      if (cores.length === 0) {{
+        renderEmptyState();
+        return;
+      }}
 
-    renderCoreOptions();
+      setOptions(coreSelect, cores.map((core) => ({{ value: core, label: core }})));
+      coreSelect.disabled = false;
+
+      updateTypeOptions();
+      updateStatusForSelection();
+    }}
+
+    coreSelect.addEventListener(\"change\", () => {{
+      updateTypeOptions();
+      updateStatusForSelection();
+    }});
+    reportTypeSelect.addEventListener(\"change\", () => {{
+      updateStatusForSelection();
+    }});
+    openButton.addEventListener(\"click\", openSelectedReport);
+
+    initializeSelectors();
   </script>
 </body>
 </html>
@@ -213,13 +320,15 @@ def build_index_html(report_map: dict[str, dict[str, str]]) -> str:
 
 
 def update_index_html(project_root: Path):
-    outputs_root = project_root / "outputs"
-    outputs_root.mkdir(parents=True, exist_ok=True)
-    index_path = outputs_root / "index.html"
+    index_path = project_root / "index.html"
+    legacy_index_path = project_root / "outputs" / "index.html"
 
     report_map = collect_reports(project_root)
     html_text = build_index_html(report_map)
     index_path.write_text(html_text, encoding="utf-8")
+
+    if legacy_index_path.exists():
+        legacy_index_path.unlink()
 
     print(f"Updated launcher index: {index_path.resolve()}")
 

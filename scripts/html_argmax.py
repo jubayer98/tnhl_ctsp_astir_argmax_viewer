@@ -5,6 +5,7 @@ from pathlib import Path
 
 from ctsp_argmax import run_analysis
 from ctsp_html_common import generate_html_report
+from report_index import update_index_html
 
 TITLE = "Cell Type Prediction - Argmax"
 
@@ -42,6 +43,8 @@ def main():
 
     print(f"Saved HTML report: {html_path.resolve()}")
     print(f"Saved images in: {output_dir.resolve()}")
+    update_index_html(project_root)
+    print(f"Updated report launcher: {(project_root / 'index.html').resolve()}")
 
 
 if __name__ == "__main__":
